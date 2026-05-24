@@ -1,0 +1,1304 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<title>Annotatore Ispezioni Ponti v3</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #1a1a1a; color: #e0e0e0;
+  height: 100vh; display: flex; flex-direction: column; overflow: hidden;
+}
+header {
+  background: #2a2a2a; border-bottom: 1px solid #3a3a3a;
+  padding: 8px 12px; display: flex; flex-wrap: wrap; gap: 6px;
+  align-items: center; flex-shrink: 0;
+}
+header h1 { font-size: 14px; font-weight: 700; margin-right: 8px; color: #fff; }
+.sep { width: 1px; background: #444; align-self: stretch; margin: 0 2px; }
+button, label.btn {
+  background: #383838; color: #ddd; border: 1px solid #555;
+  padding: 5px 10px; border-radius: 4px; cursor: pointer;
+  font-size: 12px; font-family: inherit; white-space: nowrap;
+}
+button:hover, label.btn:hover { background: #484848; }
+button:disabled { opacity: 0.35; cursor: not-allowed; }
+button.primary { background: #1d4ed8; border-color: #2563eb; color: #fff; }
+button.primary:hover { background: #1e40af; }
+button.warn { background: #7c3aed; border-color: #6d28d9; color: #fff; }
+button.warn:hover { background: #6d28d9; }
+input[type="file"] { display: none; }
+main { display: flex; flex: 1; min-height: 0; }
+#canvas-area { flex: 1; position: relative; overflow: auto; background: #111; }
+#canvas-wrapper { position: relative; display: inline-block; transform-origin: top left; }
+#base-canvas { display: block; }
+#overlay-canvas { position: absolute; top: 0; left: 0; cursor: crosshair; }
+
+/* ── INPUT INLINE ── */
+.inline-wrap {
+  position: absolute; z-index: 100;
+  display: flex; align-items: center; gap: 3px;
+  background: rgba(0,0,0,0.78); border-radius: 6px;
+  padding: 3px 5px; pointer-events: auto;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+.inline-wrap input[type="number"] {
+  width: 52px; font-size: 14px; font-weight: 700;
+  text-align: center; border: 2px solid #fff; border-radius: 4px;
+  background: #fff; color: #111; padding: 2px 3px; outline: none;
+  -moz-appearance: textfield;
+}
+.inline-wrap input::-webkit-outer-spin-button,
+.inline-wrap input::-webkit-inner-spin-button { -webkit-appearance: none; }
+.inline-wrap .ok  { background:#16a34a;border-color:#16a34a;color:#fff;padding:3px 7px;font-size:12px;border-radius:4px; }
+.inline-wrap .del { background:#dc2626;border-color:#dc2626;color:#fff;padding:3px 7px;font-size:12px;border-radius:4px; }
+
+/* ── SIDEBAR ── */
+aside {
+  width: 300px; background: #222; border-left: 1px solid #3a3a3a;
+  display: flex; flex-direction: column; overflow: hidden; flex-shrink: 0;
+}
+.ss { padding: 10px 14px; border-bottom: 1px solid #333; }
+.ss h2 { font-size: 11px; text-transform: uppercase; letter-spacing:.5px; color:#888; margin-bottom:8px; }
+.fr { display:flex; align-items:center; gap:6px; margin-bottom:6px; font-size:12px; }
+.fr label { color:#aaa; flex-shrink:0; width:54px; }
+.fr input[type="text"], .fr input[type="number"] {
+  flex:1; background:#333; border:1px solid #555; border-radius:3px;
+  color:#ddd; padding:4px 6px; font-size:12px;
+}
+.pills { display:flex; gap:4px; flex-wrap:wrap; }
+.pill {
+  padding:4px 8px; border-radius:12px; border:2px solid transparent;
+  cursor:pointer; font-size:11px; font-weight:700; opacity:.55;
+  transition:opacity .15s,border-color .15s;
+}
+.pill.active { opacity:1; border-color:#fff; }
+.pill.red    { background:#dc2626; color:#fff; }
+.pill.blue   { background:#2563eb; color:#fff; }
+.pill.yellow { background:#ca8a04; color:#fff; }
+.pill.green  { background:#16a34a; color:#fff; }
+.help { font-size:11px; color:#666; line-height:1.6; }
+.help strong { color:#999; }
+#marker-list { flex:1; overflow-y:auto; padding:6px; }
+.mi {
+  display:flex; align-items:center; gap:6px;
+  padding:5px 7px; border-radius:4px; margin-bottom:2px;
+  cursor:pointer; font-size:12px;
+}
+.mi:hover { background:#2d2d2d; }
+.mi.sel   { background:#1e3a5f; }
+.badge {
+  width:26px; height:26px; border-radius:50%;
+  background:#fff; border:2px solid;
+  display:flex; align-items:center; justify-content:center;
+  font-size:11px; font-weight:700; flex-shrink:0;
+}
+.badge.pend { border-style:dashed; opacity:.7; }
+.mi-info { flex:1; min-width:0; }
+.mi-coord { font-size:10px; color:#666; }
+.mdel { background:none;border:none;color:#555;font-size:14px;cursor:pointer;padding:0 3px; }
+.mdel:hover { color:#dc2626; }
+#status-bar { padding:5px 14px; font-size:11px; color:#666; border-top:1px solid #333; background:#1a1a1a; flex-shrink:0; }
+#empty-msg {
+  position:absolute; inset:0; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; color:#555; text-align:center;
+  padding:40px; pointer-events:none;
+}
+#empty-msg h2 { font-size:18px; margin-bottom:12px; color:#666; }
+#empty-msg p  { font-size:13px; line-height:1.8; }
+#zoom-lbl { font-size:12px; color:#aaa; min-width:36px; text-align:center; }
+
+/* ── REPORT MODAL ── */
+#report-modal {
+  display:none; position:fixed; inset:0; z-index:999;
+  background:rgba(0,0,0,0.7); align-items:center; justify-content:center;
+}
+#report-modal.open { display:flex; }
+#report-box {
+  background:#1e1e1e; border:1px solid #444; border-radius:8px;
+  width:700px; max-width:95vw; max-height:85vh;
+  display:flex; flex-direction:column; overflow:hidden;
+}
+#report-box h2 { padding:14px 18px; font-size:14px; border-bottom:1px solid #333; }
+#report-content { flex:1; overflow-y:auto; padding:14px 18px; }
+#report-content table { width:100%; border-collapse:collapse; font-size:12px; }
+#report-content th { background:#2a2a2a; padding:6px 8px; text-align:left; color:#aaa; border-bottom:1px solid #333; }
+#report-content td { padding:6px 8px; border-bottom:1px solid #2a2a2a; vertical-align:top; }
+#report-content tr:hover td { background:#252525; }
+#report-footer { padding:10px 18px; border-top:1px solid #333; display:flex; gap:8px; justify-content:flex-end; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🌉 Annotatore Ispezioni</h1>
+  <label class="btn">📷 Foto<input type="file" id="img-file" accept="image/*"></label>
+  <label class="btn">📋 JSON<input type="file" id="json-file" accept=".json"></label>
+  <div class="sep"></div>
+  <button id="btn-undo" disabled title="Annulla (Ctrl+Z)">↩ Annulla</button>
+  <button id="btn-redo" disabled title="Ripristina (Ctrl+Y)">↪ Ripristina</button>
+  <div class="sep"></div>
+  <button id="btn-clean"      disabled>🧹 Pulisci</button>
+  <button id="btn-export-json" disabled>💾 JSON</button>
+  <button id="btn-export-png" class="primary" disabled>⬇ PNG</button>
+  <button id="btn-export-jpg" disabled>⬇ JPG</button>
+  <button id="btn-report"     disabled>📄 Report</button>
+  <div class="sep"></div>
+  <button id="btn-zm">−</button>
+  <span id="zoom-lbl">100%</span>
+  <button id="btn-zp">+</button>
+  <button id="btn-zf">Adatta</button>
+  <div class="sep"></div>
+  <label style="font-size:12px;color:#aaa">⬤ Marker:</label>
+  <input type="range" id="msize" min="6" max="80" value="26"
+         style="width:90px;cursor:pointer;accent-color:#2563eb">
+  <span id="msize-lbl" style="font-size:12px;color:#aaa;min-width:26px">26</span>
+  <div class="sep"></div>
+  <label style="font-size:12px;color:#aaa">Opacità:</label>
+  <input type="range" id="malpha" min="10" max="100" value="55"
+         style="width:70px;cursor:pointer;accent-color:#2563eb">
+  <span id="malpha-lbl" style="font-size:12px;color:#aaa;min-width:30px">55%</span>
+</header>
+
+<main>
+  <div id="canvas-area">
+    <div id="canvas-wrapper">
+      <canvas id="base-canvas"></canvas>
+      <canvas id="overlay-canvas"></canvas>
+    </div>
+    <div id="empty-msg">
+      <h2>Carica un'immagine</h2>
+      <p>1. <strong>Carica foto</strong><br>
+         2. Seleziona colore e clicca sulla mappa<br>
+         3. Il numero si incrementa automaticamente ad ogni clic<br>
+         4. <strong>Pulisci</strong> → <strong>Esporta</strong></p>
+    </div>
+  </div>
+
+  <aside>
+    <div class="ss">
+      <h2>Aggiungi marker manuale</h2>
+      <div class="fr">
+        <label>Numero</label>
+        <input type="number" id="next-num" value="1" min="0" style="width:60px;flex:none">
+        <button id="btn-reset-num" title="Reimposta a 1" style="padding:4px 8px;font-size:11px">↺ Reset</button>
+      </div>
+      <div class="fr">
+        <label>Colore</label>
+        <div class="pills">
+          <span class="pill red active"   data-color="red">SOPRA</span>
+          <span class="pill blue"         data-color="blue">SOTTO</span>
+          <span class="pill yellow"       data-color="yellow">VIDEO</span>
+          <span class="pill green"        data-color="green">NOTE</span>
+        </div>
+      </div>
+      <div class="help">
+        <strong>Click</strong> = piazza marker con numero corrente<br>
+        <strong>Click marker</strong> = modifica numero<br>
+        <strong>Trascina</strong> = sposta &nbsp;
+        <strong>Canc</strong> = elimina
+      </div>
+    </div>
+
+    <div class="ss">
+      <h2>Intestazione</h2>
+      <div class="fr"><label>Titolo</label><input type="text" id="leg-title" placeholder="es. 144 — CAVALCAVIA ROMANIA"></div>
+      <div class="fr"><label>Data</label>  <input type="text" id="leg-date"  placeholder="es. Dom 19 apr"></div>
+      <div class="fr" style="gap:8px">
+        <label style="width:auto">Mostra nell'export</label>
+        <input type="checkbox" id="leg-show" checked>
+      </div>
+    </div>
+
+    <div class="ss">
+      <h2>Riferimenti viari</h2>
+      <div style="font-size:11px;color:#666;margin-bottom:6px">
+        <strong style="color:#999">Globali</strong> — valgono per tutti i marker (es. nome del ponte, via principale).<br>
+        <strong style="color:#999">Per marker</strong> — clicca un marker sulla mappa per associargli una via specifica.
+      </div>
+      <textarea id="manual-streets"
+        placeholder="es. Corso Regina Margherita, Via Pianezza"
+        style="width:100%;height:56px;background:#333;border:1px solid #555;border-radius:3px;
+               color:#ddd;padding:6px;font-size:12px;font-family:inherit;resize:vertical"></textarea>
+    </div>
+
+    <div class="ss" style="padding:6px 14px">
+      <h2>Marker (<span id="m-count">0</span>)
+        <span id="m-pend" style="color:#ca8a04;margin-left:4px"></span>
+      </h2>
+    </div>
+    <div id="marker-list"></div>
+    <div id="status-bar">Pronto.</div>
+  </aside>
+</main>
+
+<!-- REPORT MODAL -->
+<div id="report-modal">
+  <div id="report-box">
+    <h2>📄 Report posizioni foto</h2>
+    <div id="report-content"></div>
+    <div id="report-footer">
+      <button id="btn-report-jpg" class="primary">⬇ Esporta JPG</button>
+      <button id="btn-report-close">Chiudi</button>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ═══════════════════════════════════════════════════════════
+//  STATO
+// ═══════════════════════════════════════════════════════════
+const S = {
+  img:null, W:0, H:0,
+  markers:[], nextId:1,
+  selectedId:null,
+  draggingId:null, dragOff:{x:0,y:0}, didDrag:false,
+  zoom:1,
+  currentColor:'red',
+  cleanedData:null, showCleaned:false,
+};
+
+const COLOR_HEX   = {red:'#dc2626',blue:'#2563eb',yellow:'#ca8a04',green:'#16a34a'};
+const COLOR_LABEL = {red:'SOPRA',  blue:'SOTTO',  yellow:'VIDEO',  green:'NOTE'};
+
+// ═══════════════════════════════════════════════════════════
+//  UNDO / REDO
+// ═══════════════════════════════════════════════════════════
+const HISTORY = { stack: [], cursor: -1, maxSize: 50 };
+
+function snapshotMarkers() {
+  // Serializza lo stato corrente dei marker in modo da poterlo ripristinare
+  return JSON.stringify(S.markers.map(m => ({...m})));
+}
+
+function pushHistory() {
+  // Taglia il futuro se siamo a metà dello stack (dopo undo)
+  if (HISTORY.cursor < HISTORY.stack.length - 1)
+    HISTORY.stack.splice(HISTORY.cursor + 1);
+  HISTORY.stack.push(snapshotMarkers());
+  if (HISTORY.stack.length > HISTORY.maxSize) HISTORY.stack.shift();
+  HISTORY.cursor = HISTORY.stack.length - 1;
+  updateUndoRedo();
+}
+
+function restoreSnapshot(snap) {
+  // Chiudi tutti gli input inline aperti
+  for (const [id, el] of inputEls) { el.remove(); }
+  inputEls.clear();
+  S.selectedId = null;
+  S.markers = JSON.parse(snap).map(m => ({...m}));
+  // Riapri input per i pending
+  S.markers.filter(m => m.pending).forEach(m => createInlineInput(m));
+  drawOverlay(); updateList();
+}
+
+function undo() {
+  if (HISTORY.cursor <= 0) return;
+  // Se siamo alla cima (nessun undo fatto), salva lo stato attuale come cima
+  if (HISTORY.cursor === HISTORY.stack.length - 1) {
+    HISTORY.stack.push(snapshotMarkers());
+    HISTORY.cursor = HISTORY.stack.length - 1;
+  }
+  HISTORY.cursor--;
+  restoreSnapshot(HISTORY.stack[HISTORY.cursor]);
+  updateUndoRedo();
+  setStatus('Operazione annullata.');
+}
+
+function redo() {
+  if (HISTORY.cursor >= HISTORY.stack.length - 1) return;
+  HISTORY.cursor++;
+  restoreSnapshot(HISTORY.stack[HISTORY.cursor]);
+  updateUndoRedo();
+  setStatus('Operazione ripristinata.');
+}
+
+function updateUndoRedo() {
+  document.getElementById('btn-undo').disabled = HISTORY.cursor <= 0;
+  document.getElementById('btn-redo').disabled = HISTORY.cursor >= HISTORY.stack.length - 1;
+}
+
+document.getElementById('btn-undo').addEventListener('click', undo);
+document.getElementById('btn-redo').addEventListener('click', redo);
+
+// ═══════════════════════════════════════════════════════════
+//  DOM
+// ═══════════════════════════════════════════════════════════
+const baseCanvas  = document.getElementById('base-canvas');
+const overCanvas  = document.getElementById('overlay-canvas');
+const bCtx        = baseCanvas.getContext('2d');
+const oCtx        = overCanvas.getContext('2d');
+const wrapper     = document.getElementById('canvas-wrapper');
+const area        = document.getElementById('canvas-area');
+const emptyMsg    = document.getElementById('empty-msg');
+const mList       = document.getElementById('marker-list');
+const statusBar   = document.getElementById('status-bar');
+const zoomLbl     = document.getElementById('zoom-lbl');
+const mCount      = document.getElementById('m-count');
+const mPend       = document.getElementById('m-pend');
+
+const setStatus = t => statusBar.textContent = t;
+
+// ═══════════════════════════════════════════════════════════
+//  DIMENSIONI MARKER
+// ═══════════════════════════════════════════════════════════
+function R()     { return parseInt(document.getElementById('msize').value); }
+function FS()    { return Math.max(9, R() * 0.85); }
+function ALPHA() { return parseInt(document.getElementById('malpha').value) / 100; }
+
+document.getElementById('msize').addEventListener('input', function(){
+  document.getElementById('msize-lbl').textContent = this.value;
+  drawOverlay(); repositionInputs();
+});
+document.getElementById('malpha').addEventListener('input', function(){
+  document.getElementById('malpha-lbl').textContent = this.value + '%';
+  drawOverlay();
+});
+
+// ═══════════════════════════════════════════════════════════
+//  ZOOM
+// ═══════════════════════════════════════════════════════════
+function setZoom(z, pivotClientX, pivotClientY) {
+  const oldZoom = S.zoom;
+  S.zoom = Math.max(0.08, Math.min(8, z));
+
+  const ws = (S.W * S.zoom) + 'px', hs = (S.H * S.zoom) + 'px';
+  wrapper.style.width = ws; wrapper.style.height = hs;
+  baseCanvas.style.width  = overCanvas.style.width  = ws;
+  baseCanvas.style.height = overCanvas.style.height = hs;
+  zoomLbl.textContent = Math.round(S.zoom * 100) + '%';
+
+  // Se ho un punto pivot (cursore) mantengo quel punto fisso durante lo zoom
+  if (pivotClientX !== undefined) {
+    const rect = area.getBoundingClientRect();
+    const mouseX = pivotClientX - rect.left; // posizione relativa all'area
+    const mouseY = pivotClientY - rect.top;
+    // Calcolo quanto scorrere per tenere il punto sotto il cursore fisso
+    const scrollX = area.scrollLeft;
+    const scrollY = area.scrollTop;
+    const imgX = (scrollX + mouseX) / oldZoom; // coord immagine sotto il cursore
+    const imgY = (scrollY + mouseY) / oldZoom;
+    area.scrollLeft = imgX * S.zoom - mouseX;
+    area.scrollTop  = imgY * S.zoom - mouseY;
+  }
+
+  repositionInputs();
+}
+function zoomFit() {
+  if (!S.img) return;
+  setZoom(Math.min(area.clientWidth/S.W, area.clientHeight/S.H) * 0.95);
+  area.scrollLeft = 0; area.scrollTop = 0;
+}
+document.getElementById('btn-zp').addEventListener('click', () => setZoom(S.zoom * 1.25));
+document.getElementById('btn-zm').addEventListener('click', () => setZoom(S.zoom / 1.25));
+document.getElementById('btn-zf').addEventListener('click', zoomFit);
+
+// Zoom con rotella del mouse — centrato sul cursore, senza richiedere Ctrl
+area.addEventListener('wheel', e => {
+  e.preventDefault();
+  const factor = e.deltaY < 0 ? 1.12 : 1/1.12;
+  setZoom(S.zoom * factor, e.clientX, e.clientY);
+}, {passive: false});
+
+// ── PAN con click rotella (tasto centrale) ──────────────────
+let _panning = false;
+let _panStart = {x:0, y:0};
+let _scrollStart = {x:0, y:0};
+
+area.addEventListener('mousedown', e => {
+  if (e.button !== 1) return; // solo tasto centrale
+  e.preventDefault();
+  _panning = true;
+  _panStart = {x: e.clientX, y: e.clientY};
+  _scrollStart = {x: area.scrollLeft, y: area.scrollTop};
+  area.style.cursor = 'grabbing';
+});
+window.addEventListener('mousemove', e => {
+  if (!_panning) return;
+  area.scrollLeft = _scrollStart.x - (e.clientX - _panStart.x);
+  area.scrollTop  = _scrollStart.y - (e.clientY - _panStart.y);
+});
+window.addEventListener('mouseup', e => {
+  if (e.button !== 1 || !_panning) return;
+  _panning = false;
+  area.style.cursor = '';
+});
+// Evita che il browser apra il menu contestuale col tasto centrale
+area.addEventListener('auxclick', e => { if(e.button===1) e.preventDefault(); });
+
+// ═══════════════════════════════════════════════════════════
+//  RENDERING
+// ═══════════════════════════════════════════════════════════
+function drawBase() {
+  baseCanvas.width = overCanvas.width = S.W;
+  baseCanvas.height = overCanvas.height = S.H;
+  if (S.showCleaned && S.cleanedData) bCtx.putImageData(S.cleanedData, 0, 0);
+  else bCtx.drawImage(S.img, 0, 0);
+}
+
+function drawMarker(ctx, m, sel=false) {
+  const r = R(), col = COLOR_HEX[m.color]||'#888';
+  const alpha = ALPHA();
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+
+  // Cerchio riempito con il colore del marker (semi-trasparente per vedere sotto)
+  ctx.beginPath();
+  ctx.arc(m.x, m.y, r, 0, Math.PI*2);
+  ctx.fillStyle = col;
+  ctx.fill();
+
+  // Bordo: più spesso e bianco se selezionato
+  ctx.globalAlpha = Math.min(1, alpha + 0.25);
+  ctx.lineWidth = sel ? Math.max(5, r*0.22) : Math.max(2.5, r*0.13);
+  ctx.setLineDash(m.pending ? [r*0.4, r*0.25] : []);
+  ctx.strokeStyle = sel ? '#fbbf24' : 'white';
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Testo: numero per rosso/blu/giallo; rettangolo con nota completa per verde
+  if (!m.pending) {
+    if (m.color === 'green') {
+      // Rettangolo con testo nota completo
+      const nota = m.nota || '?';
+      const fs = Math.max(11, FS() * 0.82);
+      ctx.font = `bold ${fs}px -apple-system,Arial,sans-serif`;
+      const tw = ctx.measureText(nota).width;
+      const pad = 6, rh = fs + 10;
+      const rw = tw + pad * 2;
+      // Sfondo rettangolo
+      ctx.globalAlpha = alpha;
+      ctx.beginPath();
+      ctx.roundRect(m.x - rw/2, m.y - rh/2, rw, rh, 4);
+      ctx.fillStyle = COLOR_HEX.green;
+      ctx.fill();
+      ctx.globalAlpha = Math.min(1, alpha + 0.25);
+      ctx.lineWidth = sel ? Math.max(3, rh*0.12) : Math.max(2, rh*0.08);
+      ctx.strokeStyle = sel ? '#fbbf24' : 'white';
+      ctx.stroke();
+      // Testo
+      ctx.globalAlpha = Math.min(1, alpha + 0.35);
+      ctx.fillStyle = '#ffffff';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.shadowColor = 'rgba(0,0,0,0.6)';
+      ctx.shadowBlur = 2;
+      ctx.fillText(nota, m.x, m.y);
+      ctx.shadowBlur = 0;
+    } else {
+      const label = m.n !== null ? String(m.n) : '?';
+      ctx.globalAlpha = Math.min(1, alpha + 0.35);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = `bold ${FS()}px -apple-system,Arial,sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.shadowColor = 'rgba(0,0,0,0.7)';
+      ctx.shadowBlur = 3;
+      ctx.fillText(label, m.x, m.y + FS()*0.05);
+      ctx.shadowBlur = 0;
+    }
+  }
+  ctx.restore();
+}
+
+function drawOverlay() {
+  oCtx.clearRect(0,0,S.W,S.H);
+  for (const m of S.markers) drawMarker(oCtx, m, m.id===S.selectedId);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  INPUT INLINE
+// ═══════════════════════════════════════════════════════════
+const inputEls = new Map();
+
+function createInlineInput(m) {
+  if (inputEls.has(m.id)) return;
+  const wrap = document.createElement('div');
+  wrap.className = 'inline-wrap';
+  wrap.dataset.mid = m.id;
+
+  const isGreen = m.color === 'green';
+
+  // Campo principale: nota (verde) oppure numero (altri colori)
+  const inp = document.createElement('input');
+  if (isGreen) {
+    inp.type = 'text';
+    inp.placeholder = 'nota…';
+    inp.value = m.nota || '';
+    inp.style.cssText = 'width:200px;font-size:13px;font-weight:bold;border:2px solid #16a34a;border-radius:4px;background:#fff;color:#111;padding:2px 6px;outline:none;';
+  } else {
+    inp.type = 'number'; inp.min = '0'; inp.placeholder = '?';
+    if (m.n !== null) inp.value = m.n;
+    inp.style.cssText = `width:52px;font-size:14px;font-weight:700;text-align:center;border:2px solid ${COLOR_HEX[m.color]||'#fff'};border-radius:4px;background:#fff;color:#111;padding:2px 3px;outline:none;-moz-appearance:textfield;`;
+  }
+
+  // Campo via (solo per non-verdi)
+  let viaInp = null;
+  if (!isGreen) {
+    viaInp = document.createElement('input');
+    viaInp.type = 'text';
+    viaInp.placeholder = 'via / riferimento…';
+    viaInp.value = m.via || '';
+    viaInp.style.cssText = 'width:160px;font-size:12px;border:2px solid #aaa;border-radius:4px;background:#fff;color:#111;padding:2px 5px;outline:none;';
+  }
+
+  const ok  = document.createElement('button'); ok.className='ok';  ok.textContent='✓';
+  const del = document.createElement('button'); del.className='del'; del.textContent='✕';
+
+  if (viaInp) wrap.append(inp, viaInp, ok, del);
+  else        wrap.append(inp, ok, del);
+  wrapper.appendChild(wrap);
+  positionInput(wrap, m);
+  inputEls.set(m.id, wrap);
+
+  const confirm = () => {
+    if (isGreen) {
+      const nota = inp.value.trim();
+      if (!nota) return; // non confermare se vuoto
+      pushHistory();
+      m.nota = nota; m.n = null; m.pending = false;
+      removeInput(m.id);
+      drawOverlay(); updateList();
+      setStatus(`Nota: "${nota}"`);
+    } else {
+      const v = parseInt(inp.value);
+      if (!isNaN(v)) {
+        pushHistory();
+        m.n = v; m.pending = false;
+        m.via = viaInp ? viaInp.value.trim() : '';
+        const cur = parseInt(document.getElementById('next-num').value);
+        if (v >= cur) document.getElementById('next-num').value = v + 1;
+        removeInput(m.id);
+        drawOverlay(); updateList();
+        setStatus(`Marker ${COLOR_LABEL[m.color]} n.${v} aggiornato.`);
+      }
+    }
+  };
+
+  ok.addEventListener('click', confirm);
+  inp.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { viaInp ? viaInp.focus() : confirm(); e.stopPropagation(); }
+    if (e.key === 'Escape') removeInput(m.id);
+    e.stopPropagation();
+  });
+  if (viaInp) {
+    viaInp.addEventListener('keydown', e => {
+      if (e.key === 'Enter') confirm();
+      if (e.key === 'Escape') removeInput(m.id);
+      e.stopPropagation();
+    });
+  }
+  del.addEventListener('click', () => deleteMarker(m.id));
+  setTimeout(() => inp.focus(), 40);
+}
+
+function positionInput(wrap, m) {
+  wrap.style.left = (m.x * S.zoom) + 'px';
+  wrap.style.top  = (m.y * S.zoom - R()*S.zoom - 38) + 'px';
+}
+function repositionInputs() {
+  for (const [id,wrap] of inputEls) {
+    const m = S.markers.find(mm=>mm.id===id);
+    if (m) positionInput(wrap, m);
+  }
+}
+function removeInput(id) {
+  const el=inputEls.get(id); if(el){el.remove();inputEls.delete(id);}
+}
+function openInput(m) {
+  if (inputEls.has(m.id)) { inputEls.get(m.id).querySelector('input').focus(); return; }
+  // chiudi input di marker non-pending
+  for (const [id,el] of inputEls) {
+    const mm=S.markers.find(x=>x.id===id);
+    if (mm&&!mm.pending){el.remove();inputEls.delete(id);}
+  }
+  createInlineInput(m);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  MARKER CRUD
+// ═══════════════════════════════════════════════════════════
+function addMarker(x,y,n=null,color=null) {
+  pushHistory();
+  const col = color||S.currentColor;
+  const isGreen = col === 'green';
+  const num = isGreen ? null : (n!==null ? n : parseInt(document.getElementById('next-num').value));
+  const m = {id:S.nextId++, n:num, color:col, x, y, nota:'', via:'', pending: isGreen};
+  S.markers.push(m);
+  if(!isGreen && n===null) document.getElementById('next-num').value = num + 1;
+  drawOverlay(); updateList();
+  if (isGreen) {
+    createInlineInput(m);
+    setStatus('NOTE: inserisci una nota.');
+  } else {
+    setStatus(`Aggiunto marker ${COLOR_LABEL[col]||col} n.${num}`);
+  }
+  return m;
+}
+function deleteMarker(id) {
+  pushHistory();
+  removeInput(id);
+  S.markers = S.markers.filter(m=>m.id!==id);
+  if (S.selectedId===id) S.selectedId=null;
+  drawOverlay(); updateList(); setStatus('Marker eliminato.');
+}
+function selectMarker(id) { S.selectedId=id; drawOverlay(); updateList(); }
+
+// ═══════════════════════════════════════════════════════════
+//  EVENTI MOUSE
+// ═══════════════════════════════════════════════════════════
+function evXY(e) {
+  const r=overCanvas.getBoundingClientRect();
+  return {x:(e.clientX-r.left)/S.zoom, y:(e.clientY-r.top)/S.zoom};
+}
+function markerAt(x,y) {
+  const r=R();
+  for (let i=S.markers.length-1;i>=0;i--){
+    const m=S.markers[i];
+    if((m.x-x)**2+(m.y-y)**2<=r*r) return m;
+  }
+  return null;
+}
+let _dm=null, _dd=false;
+overCanvas.addEventListener('mousedown', e=>{
+  if(e.button !== 0) return; // solo tasto sinistro
+  const {x,y}=evXY(e); _dm=markerAt(x,y); _dd=false;
+  if(_dm){S.draggingId=_dm.id;S.dragOff={x:x-_dm.x,y:y-_dm.y};selectMarker(_dm.id);}
+});
+overCanvas.addEventListener('mousemove', e=>{
+  if(S.draggingId===null) return;
+  const {x,y}=evXY(e);
+  const m=S.markers.find(mm=>mm.id===S.draggingId);
+  if(m){
+    const nx=Math.max(0,Math.min(S.W,x-S.dragOff.x));
+    const ny=Math.max(0,Math.min(S.H,y-S.dragOff.y));
+    if(Math.abs(nx-m.x)>1||Math.abs(ny-m.y)>1) _dd=true;
+    m.x=nx; m.y=ny; drawOverlay(); repositionInputs();
+  }
+});
+overCanvas.addEventListener('mouseup', e=>{
+  if(e.button !== 0) return; // solo tasto sinistro
+  if(S.draggingId!==null){
+    if(_dd){ pushHistory(); updateList(); setStatus('Marker spostato.');}
+    else if(_dm) openInput(_dm);
+    S.draggingId=null;
+  } else if(!_dm){
+    // Clic sinistro su area vuota → marker col numero corrente
+    const {x,y}=evXY(e);
+    addMarker(x, y);
+  }
+  _dm=null; _dd=false;
+});
+document.addEventListener('keydown',e=>{
+  if(e.target.tagName==='INPUT') return;
+  if((e.key==='Delete'||e.key==='Backspace')&&S.selectedId!==null){
+    deleteMarker(S.selectedId); e.preventDefault();
+  }
+  if((e.ctrlKey||e.metaKey)&&e.key==='z'&&!e.shiftKey){ undo(); e.preventDefault(); }
+  if((e.ctrlKey||e.metaKey)&&(e.key==='y'||(e.key==='z'&&e.shiftKey))){ redo(); e.preventDefault(); }
+});
+
+document.getElementById('btn-reset-num').addEventListener('click', () => {
+  document.getElementById('next-num').value = 1;
+  setStatus('Numerazione reimpostata a 1.');
+});
+
+// ═══════════════════════════════════════════════════════════
+//  SIDEBAR LISTA
+// ═══════════════════════════════════════════════════════════
+function updateList() {
+  const pending=S.markers.filter(m=>m.pending).length;
+  mCount.textContent=S.markers.length;
+  mPend.textContent=pending>0?`(${pending} da compilare)`:'';
+  if(!S.markers.length){
+    mList.innerHTML='<div style="text-align:center;color:#555;padding:20px;font-size:12px">Nessun marker.<br>Clicca sulla foto per aggiungerne uno.</div>';
+    return;
+  }
+  const sorted=[...S.markers].sort((a,b)=>{
+    const oi=Object.keys(COLOR_HEX);
+    if(a.color!==b.color) return oi.indexOf(a.color)-oi.indexOf(b.color);
+    if(a.pending!==b.pending) return a.pending?1:-1;
+    return (a.n||9999)-(b.n||9999);
+  });
+  mList.innerHTML='';
+  for(const m of sorted){
+    const div=document.createElement('div');
+    div.className='mi'+(m.id===S.selectedId?' sel':'');
+    div.innerHTML=`
+      <div class="${m.pending?'badge pend':'badge'}" style="border-color:${COLOR_HEX[m.color]};color:${COLOR_HEX[m.color]};${m.color==='green'?'border-radius:4px;width:auto;padding:0 5px;max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px;':''}">${m.pending?'?': m.color==='green' ? (m.nota||'?') : m.n}</div>
+      <div class="mi-info">
+        <div>${COLOR_LABEL[m.color]||m.color} ${m.pending?'<span style="color:#ca8a04">— da compilare</span>': m.color==='green'&&m.nota?`<span style="color:#86efac">${m.nota}</span>`:''}</div>
+        ${m.via?`<div class="mi-coord" style="color:#94a3b8">📍 ${m.via}</div>`:''}
+        <div class="mi-coord">${Math.round(m.x)}, ${Math.round(m.y)}</div>
+      </div>
+      <button class="mdel" data-id="${m.id}">×</button>`;
+    div.addEventListener('click',e=>{
+      if(e.target.classList.contains('mdel')) return;
+      selectMarker(m.id); openInput(m);
+      area.scrollTo({left:m.x*S.zoom-area.clientWidth/2, top:m.y*S.zoom-area.clientHeight/2, behavior:'smooth'});
+    });
+    mList.appendChild(div);
+  }
+  mList.querySelectorAll('.mdel').forEach(b=>b.addEventListener('click',()=>deleteMarker(parseInt(b.dataset.id))));
+}
+
+// ═══════════════════════════════════════════════════════════
+//  COLOR PILLS
+// ═══════════════════════════════════════════════════════════
+document.querySelectorAll('.pill').forEach(p=>{
+  p.addEventListener('click',()=>{
+    document.querySelectorAll('.pill').forEach(x=>x.classList.remove('active'));
+    p.classList.add('active'); S.currentColor=p.dataset.color;
+  });
+});
+
+// ═══════════════════════════════════════════════════════════
+//  CARICAMENTO IMMAGINE
+// ═══════════════════════════════════════════════════════════
+document.getElementById('img-file').addEventListener('change', e => {
+  const f = e.target.files[0]; if(!f) return;
+  loadImageFile(f);
+  e.target.value = '';
+});
+
+function loadImageFile(file){
+  const r = new FileReader();
+  r.onload = ev => {
+    const img = new Image();
+    img.onload = () => {
+      S.img = img; S.W = img.naturalWidth; S.H = img.naturalHeight;
+      S.cleanedData = null; S.showCleaned = false;
+      drawBase(); drawOverlay(); emptyMsg.style.display = 'none';
+      zoomFit(); enableBtns();
+      document.getElementById('leg-date').value = '';
+      setStatus(`Immagine: ${S.W}×${S.H}px`);
+    };
+    img.src = ev.target.result;
+  };
+  r.readAsDataURL(file);
+}
+
+function enableBtns(){
+  ['btn-clean','btn-export-json','btn-export-png','btn-export-jpg','btn-report']
+    .forEach(id => { const el=document.getElementById(id); if(el) el.disabled=false; });
+}
+
+function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
+
+function rgbToHsv(r,g,b){
+  r/=255; g/=255; b/=255;
+  const max=Math.max(r,g,b), min=Math.min(r,g,b), d=max-min;
+  let h=0, s=max===0?0:d/max, v=max;
+  if(d){
+    if(max===r)      h=((g-b)/d+(g<b?6:0))*60;
+    else if(max===g) h=((b-r)/d+2)*60;
+    else             h=((r-g)/d+4)*60;
+  }
+  return [h,s,v];
+}
+
+function dilate(mask,W,H,iters){
+  let m=mask;
+  for(let it=0;it<iters;it++){
+    const m2=new Uint8Array(W*H);
+    for(let y=1;y<H-1;y++) for(let x=1;x<W-1;x++){
+      const i=y*W+x;
+      if(m[i]||m[i-1]||m[i+1]||m[i-W]||m[i+W]||m[i-W-1]||m[i-W+1]||m[i+W-1]||m[i+W+1]) m2[i]=1;
+    }
+    m=m2;
+  }
+  return m;
+}
+
+function dlBlob(blob, name){
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  IMPORT / EXPORT JSON
+// ═══════════════════════════════════════════════════════════
+document.getElementById('json-file').addEventListener('change',e=>{
+  const f=e.target.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=ev=>{
+    try{
+      const d=JSON.parse(ev.target.result);
+      if(!d.markers) throw new Error('"markers" mancante');
+      S.markers.forEach(m=>removeInput(m.id));
+      S.markers=d.markers.map(m=>({id:S.nextId++,n:m.n??null,color:m.color||'red',x:m.x,y:m.y,via:m.via||'',nota:m.nota||'',pending:false}));
+      if(d.legend){
+        if(d.legend.title) document.getElementById('leg-title').value=d.legend.title;
+        if(d.legend.date)  document.getElementById('leg-date').value=d.legend.date;
+        if(typeof d.legend.show==='boolean') document.getElementById('leg-show').checked=d.legend.show;
+      }
+      S.markers.filter(m=>m.pending).forEach(m=>createInlineInput(m));
+      drawOverlay(); updateList(); setStatus(`Importati ${S.markers.length} marker.`);
+    }catch(err){alert('JSON non valido: '+err.message);}
+  };
+  r.readAsText(f); e.target.value='';
+});
+document.getElementById('btn-export-json').addEventListener('click',()=>{
+  const d={
+    image:{width:S.W,height:S.H},
+    legend:{title:document.getElementById('leg-title').value,
+            date:document.getElementById('leg-date').value,
+            show:document.getElementById('leg-show').checked},
+    markers:S.markers.map(m=>({n:m.n,color:m.color,x:Math.round(m.x),y:Math.round(m.y),via:m.via||'',nota:m.nota||''}))
+  };
+  dlBlob(new Blob([JSON.stringify(d,null,2)],{type:'application/json'}),'markers.json');
+});
+
+// ═══════════════════════════════════════════════════════════
+//  PULIZIA SCRITTE
+// ═══════════════════════════════════════════════════════════
+document.getElementById('btn-clean').addEventListener('click',async()=>{
+  if(!S.img) return;
+  setStatus('Pulizia in corso…'); await sleep(40);
+  const tmp=document.createElement('canvas');
+  tmp.width=S.W;tmp.height=S.H;
+  const cx=tmp.getContext('2d');cx.drawImage(S.img,0,0);
+  const id=cx.getImageData(0,0,S.W,S.H),px=id.data;
+  const skip=Math.floor(S.H*.22);
+  const mask=new Uint8Array(S.W*S.H);
+  for(let y=skip;y<S.H-20;y++) for(let x=0;x<S.W;x++){
+    const i=(y*S.W+x)*4;
+    const[h,s,v]=rgbToHsv(px[i],px[i+1],px[i+2]);
+    if((s>.5&&v>.35&&(h<15||h>345)&&px[i]>px[i+1]*1.35)||
+       (s>.45&&v>.15&&v<.75&&h>200&&h<250&&px[i+2]>px[i]*1.25)||
+       (s>.5&&v>.5&&h>40&&h<65)||
+       (s>.4&&v>.25&&h>100&&h<150&&px[i+1]>px[i]*1.25))
+      mask[y*S.W+x]=1;
+  }
+  const dm=dilate(mask,S.W,S.H,3);
+  let buf=new Float32Array(S.W*S.H*3);
+  for(let i=0,j=0;i<px.length;i+=4,j+=3){buf[j]=px[i];buf[j+1]=px[i+1];buf[j+2]=px[i+2];}
+  for(let it=0;it<60;it++)
+    for(let y=1;y<S.H-1;y++) for(let x=1;x<S.W-1;x++){
+      if(!dm[y*S.W+x]) continue;
+      const j3=(y*S.W+x)*3;
+      let sR=0,sG=0,sB=0,n=0;
+      for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++){
+        if(!dx&&!dy) continue;
+        const ni=((y+dy)*S.W+(x+dx))*3;
+        sR+=buf[ni];sG+=buf[ni+1];sB+=buf[ni+2];n++;
+      }
+      buf[j3]=sR/n;buf[j3+1]=sG/n;buf[j3+2]=sB/n;
+    }
+  const out=new Uint8ClampedArray(px.length);
+  for(let i=0,j=0;i<out.length;i+=4,j+=3){out[i]=buf[j];out[i+1]=buf[j+1];out[i+2]=buf[j+2];out[i+3]=255;}
+  S.cleanedData=new ImageData(out,S.W,S.H);
+  S.showCleaned=true;
+  drawBase();drawOverlay();setStatus('Scritte rimosse.');
+});
+
+// ═══════════════════════════════════════════════════════════
+//  EXPORT IMMAGINE
+// ═══════════════════════════════════════════════════════════
+function buildExportCanvas(){
+  const c=document.createElement('canvas');
+  c.width=S.W;c.height=S.H;
+  const cx=c.getContext('2d');
+  if(S.showCleaned&&S.cleanedData) cx.putImageData(S.cleanedData,0,0);
+  else cx.drawImage(S.img,0,0);
+  // Nell'export i marker sono opachi al 100% per massima leggibilità
+  const savedAlpha = document.getElementById('malpha').value;
+  document.getElementById('malpha').value = 100;
+  for(const m of S.markers) if(!m.pending) drawMarker(cx,m,false);
+  document.getElementById('malpha').value = savedAlpha;
+  if(document.getElementById('leg-show').checked) drawLegend(cx);
+  return c;
+}
+
+function drawLegend(cx){
+  const title=document.getElementById('leg-title').value.trim();
+  const date=document.getElementById('leg-date').value.trim();
+  const W=S.W,pad=Math.round(W*.012),padY=Math.round(W*.022);
+  const boxW=Math.min(Math.round(W*.44),1050);
+  const tSz=Math.round(W*.014),dSz=Math.round(W*.010),lSz=Math.round(W*.011);
+  const r=Math.round(W*.012);
+  cx.save();
+  cx.font=`bold ${tSz}px -apple-system,Arial,sans-serif`;
+  const tlines=wrapText(cx,title,boxW-36);
+  let tH=tlines.length*(tSz+6);
+  if(date) tH+=dSz+8;
+  const lColors=[...new Set(S.markers.filter(m=>!m.pending).map(m=>m.color))];
+  const boxH=tH+18+lColors.length*(Math.max(lSz+12,r*2+6))+16;
+  cx.fillStyle='rgba(255,255,255,0.94)';cx.fillRect(pad,padY,boxW,boxH);
+  cx.lineWidth=3;cx.strokeStyle='#1a1a1a';cx.strokeRect(pad,padY,boxW,boxH);
+  cx.textAlign='left';cx.textBaseline='top';cx.fillStyle='#1a1a1a';
+  let cy=padY+14;
+  for(const line of tlines){cx.font=`bold ${tSz}px -apple-system,Arial,sans-serif`;cx.fillText(line,pad+18,cy);cy+=tSz+6;}
+  if(date){cx.fillStyle='#555';cx.font=`${dSz}px -apple-system,Arial,sans-serif`;cx.fillText(date,pad+18,cy+2);cy+=dSz+8;}
+  cy+=4;cx.beginPath();cx.moveTo(pad+18,cy);cx.lineTo(pad+boxW-18,cy);cx.strokeStyle='#ccc';cx.lineWidth=1;cx.stroke();cy+=10;
+  for(const color of lColors){
+    const col=COLOR_HEX[color];
+    cx.beginPath();cx.arc(pad+18+r,cy+r,r,0,Math.PI*2);cx.fillStyle=col;cx.fill();
+    cx.lineWidth=Math.max(2,r*.13);cx.strokeStyle='white';cx.stroke();
+    cx.fillStyle='white';cx.font=`bold ${r}px -apple-system,Arial,sans-serif`;
+    cx.textAlign='center';cx.textBaseline='middle';cx.fillText('n',pad+18+r,cy+r+r*.05);
+    cx.fillStyle='#1a1a1a';cx.font=`${lSz}px -apple-system,Arial,sans-serif`;
+    cx.textAlign='left';cx.textBaseline='middle';
+    cx.fillText(`= foto ${COLOR_LABEL[color]||color}`,pad+18+r*2+12,cy+r);
+    cy+=Math.max(lSz+12,r*2+6);
+  }
+  cx.restore();
+}
+
+function wrapText(cx,text,maxW){
+  if(!text) return[''];
+  const words=text.split(/\s+/),lines=[];let cur='';
+  for(const w of words){const t=cur?cur+' '+w:w;if(cx.measureText(t).width>maxW&&cur){lines.push(cur);cur=w;}else cur=t;}
+  if(cur) lines.push(cur); return lines;
+}
+
+// Costruisce il nome file: "Planimetria-42-CAVALCAVIA-DI-VIA-PIANEZZA.jpg"
+function buildFilename(ext){
+  const title = document.getElementById('leg-title').value.trim();
+  if(!title) return `Planimetria.${ext}`;
+
+  // Estrae il numero progressivo iniziale (es. "42" da "42 — CAVALCAVIA...")
+  const numMatch = title.match(/^(\d+)/);
+  const num = numMatch ? numMatch[1] : '';
+
+  // Pulisce il resto del titolo rimuovendo il numero iniziale e i separatori
+  const rest = title
+    .replace(/^\d+\s*[—–\-]+\s*/, '')  // rimuove "42 — " o "42 - "
+    .replace(/^\d+\s*/, '')             // rimuove numero residuo senza separatore
+    .replace(/[—–]/g, '-')
+    .replace(/[/\\:*?"<>|]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-{2,}/g, '-')
+    .replace(/^-|-$/g, '');
+
+  const base = 'Planimetria_rev';
+  const name = base + (num ? '_'+num : '') + (rest ? '-'+rest : '');
+  return `${name}.${ext}`;
+}
+
+// ── Controllo sequenza numerica ───────────────────────────
+// Restituisce {ok, missing, duplicates, min, max}
+function checkSequence(){
+  const nums = S.markers
+    .filter(m => !m.pending && m.n !== null)
+    .map(m => m.n)
+    .sort((a,b) => a-b);
+
+  if(!nums.length) return {ok:true, missing:[], duplicates:[], min:0, max:0};
+
+  const min = nums[0], max = nums[nums.length-1];
+  const missing = [];
+  const duplicates = [];
+  const seen = new Set();
+
+  for(let i = min; i <= max; i++){
+    if(!nums.includes(i)) missing.push(i);
+  }
+  for(const n of nums){
+    if(seen.has(n)) duplicates.push(n);
+    seen.add(n);
+  }
+
+  return {
+    ok: missing.length === 0 && duplicates.length === 0,
+    missing,
+    duplicates,
+    min, max,
+    total: nums.length
+  };
+}
+
+// Mostra dialogo personalizzato con messaggio e due bottoni
+// Restituisce Promise<true> se l'utente conferma, Promise<false> se annulla
+function showConfirm(title, message){
+  return new Promise(resolve => {
+    // Rimuovi eventuale dialogo precedente
+    document.getElementById('seq-modal')?.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'seq-modal';
+    modal.style.cssText = `
+      position:fixed;inset:0;z-index:9999;
+      background:rgba(0,0,0,0.65);
+      display:flex;align-items:center;justify-content:center;
+    `;
+
+    const box = document.createElement('div');
+    box.style.cssText = `
+      background:#1e293b;border:1px solid #475569;border-radius:8px;
+      padding:24px 28px;max-width:480px;width:90%;
+      box-shadow:0 20px 60px rgba(0,0,0,.5);
+    `;
+
+    const h = document.createElement('h3');
+    h.style.cssText = 'margin:0 0 12px;font-size:15px;color:#f8fafc;';
+    h.textContent = title;
+
+    const p = document.createElement('p');
+    p.style.cssText = 'margin:0 0 20px;font-size:13px;color:#94a3b8;line-height:1.6;white-space:pre-line;';
+    p.textContent = message;
+
+    const btns = document.createElement('div');
+    btns.style.cssText = 'display:flex;gap:10px;justify-content:flex-end;';
+
+    const btnSave = document.createElement('button');
+    btnSave.textContent = 'Salva comunque';
+    btnSave.style.cssText = 'background:#dc2626;border-color:#dc2626;color:#fff;padding:7px 16px;font-size:13px;border-radius:5px;cursor:pointer;border:1px solid;';
+
+    const btnCancel = document.createElement('button');
+    btnCancel.textContent = 'Annulla';
+    btnCancel.style.cssText = 'background:#334155;border-color:#475569;color:#e2e8f0;padding:7px 16px;font-size:13px;border-radius:5px;cursor:pointer;border:1px solid;';
+
+    btns.append(btnCancel, btnSave);
+    box.append(h, p, btns);
+    modal.appendChild(box);
+    document.body.appendChild(modal);
+
+    btnSave.addEventListener('click', () => { modal.remove(); resolve(true); });
+    btnCancel.addEventListener('click', () => { modal.remove(); resolve(false); });
+    modal.addEventListener('click', e => { if(e.target===modal){ modal.remove(); resolve(false); } });
+  });
+}
+
+// Controlla la sequenza e chiede conferma se ci sono buchi/duplicati
+async function checkAndConfirmExport(){
+  const chk = checkSequence();
+  if(chk.ok) return true;
+  const lines = [];
+  if(chk.missing.length)
+    lines.push(`⚠️ Numeri mancanti (${chk.missing.length}): ${chk.missing.join(', ')}`);
+  if(chk.duplicates.length)
+    lines.push(`⚠️ Numeri duplicati (${chk.duplicates.length}): ${[...new Set(chk.duplicates)].join(', ')}`);
+  lines.push(`\nSequenza rilevata: ${chk.min} → ${chk.max} (${chk.total} marker totali)`);
+  lines.push('\nVuoi salvare lo stesso?');
+  return await showConfirm('Sequenza numerazione incompleta', lines.join('\n'));
+}
+
+document.getElementById('btn-export-png').addEventListener('click', async () => {
+  if(!(await checkAndConfirmExport())) return;
+  buildExportCanvas().toBlob(b => dlBlob(b, buildFilename('png')), 'image/png');
+});
+document.getElementById('btn-export-jpg').addEventListener('click', async () => {
+  if(!(await checkAndConfirmExport())) return;
+  buildExportCanvas().toBlob(b => dlBlob(b, buildFilename('jpg')), 'image/jpeg', .92);
+});
+// ═══════════════════════════════════════════════════════════
+// Nord=alto, Sud=basso, Est=destra, Ovest=sinistra
+
+function markerCardinal(m, cx, cy){
+  const dx=m.x-cx, dy=m.y-cy;
+  const angleDeg=Math.atan2(-dy,dx)*180/Math.PI;
+  const d=((angleDeg%360)+360)%360;
+  if(d>=337.5||d<22.5)  return 'Est';
+  if(d<67.5)            return 'Nord-Est';
+  if(d<112.5)           return 'Nord';
+  if(d<157.5)           return 'Nord-Ovest';
+  if(d<202.5)           return 'Ovest';
+  if(d<247.5)           return 'Sud-Ovest';
+  if(d<292.5)           return 'Sud';
+  return 'Sud-Est';
+}
+
+function bridgeAxis(markers){
+  if(markers.length<2) return 0;
+  const n=markers.length;
+  const mx=markers.reduce((a,m)=>a+m.x,0)/n;
+  const my=markers.reduce((a,m)=>a+m.y,0)/n;
+  let num=0,den=0;
+  for(const m of markers){num+=(m.x-mx)*(m.y-my);den+=(m.x-mx)**2;}
+  return den===0?Math.PI/2:Math.atan(num/den);
+}
+
+function positionOnBridge(m, allMarkers, bridgeAngle){
+  const n=allMarkers.length;
+  const cx=allMarkers.reduce((a,mm)=>a+mm.x,0)/n;
+  const cy=allMarkers.reduce((a,mm)=>a+mm.y,0)/n;
+  const ax=Math.cos(bridgeAngle), ay=Math.sin(bridgeAngle);
+  const proj=(m.x-cx)*ax+(m.y-cy)*ay;
+  const projs=allMarkers.map(mm=>(mm.x-cx)*ax+(mm.y-cy)*ay);
+  const pMin=Math.min(...projs), pMax=Math.max(...projs);
+  const relPos=(proj-pMin)/Math.max(pMax-pMin,1);
+  const axAngleNorm=((Math.atan2(-ay,ax)*180/Math.PI%360)+360)%360;
+  let axDir,axDirOpp;
+  if(axAngleNorm>=315||axAngleNorm<45){axDir='Est';axDirOpp='Ovest';}
+  else if(axAngleNorm<135){axDir='Nord';axDirOpp='Sud';}
+  else if(axAngleNorm<225){axDir='Ovest';axDirOpp='Est';}
+  else{axDir='Sud';axDirOpp='Nord';}
+  if(relPos<0.2) return `estremità ${axDirOpp}`;
+  if(relPos<0.4) return `parte ${axDirOpp}`;
+  if(relPos<0.6) return 'zona centrale';
+  if(relPos<0.8) return `parte ${axDir}`;
+  return `estremità ${axDir}`;
+}
+
+function buildReport(){
+  const ms=S.markers.filter(m=>!m.pending&&m.n!==null)
+    .sort((a,b)=>{
+      const oi=Object.keys(COLOR_HEX);
+      if(a.color!==b.color) return oi.indexOf(a.color)-oi.indexOf(b.color);
+      return a.n-b.n;
+    });
+  if(!ms.length) return null;
+  const cx=ms.reduce((a,m)=>a+m.x,0)/ms.length;
+  const cy=ms.reduce((a,m)=>a+m.y,0)/ms.length;
+  const angle=bridgeAxis(ms);
+  const globalStreets=document.getElementById('manual-streets').value.trim();
+  const rows=ms.map(m=>({
+    m,
+    card:         markerCardinal(m,cx,cy),
+    posOnBridge:  positionOnBridge(m,ms,angle),
+    markerStreet: (m.via||'').trim(),
+    globalStreets,
+  }));
+  return {rows};
+}
+
+function buildDesc(row){
+  const{m,card,posOnBridge,markerStreet,globalStreets}=row;
+  const tipo = m.color==='green' && m.nota
+    ? `Nota: ${m.nota}`
+    : `Foto scattata nella ${posOnBridge} dell'impalcato, lato ${card}.`;
+  let desc = m.color==='green' && m.nota
+    ? `${tipo} — ${posOnBridge}, lato ${card}.`
+    : tipo;
+  const ref=(markerStreet||globalStreets||'').trim();
+  if(ref){
+    const parts=ref.split(',').map(s=>s.trim()).filter(Boolean);
+    if(parts.length===1){
+      desc+=` In prossimità di ${parts[0]}.`;
+    } else {
+      const last=parts[parts.length-1];
+      desc+=` Nei pressi dell'incrocio tra ${parts.slice(0,-1).join(', ')} e ${last}.`;
+    }
+  }
+  return desc;
+}
+
+function openReport(){
+  const result=buildReport();
+  if(!result||!result.rows.length){
+    alert('Nessun marker confermato. Compila prima i numeri dei marker.');
+    return;
+  }
+  const{rows}=result;
+  const title=document.getElementById('leg-title').value||'Ispezione';
+  const date=document.getElementById('leg-date').value||'';
+
+  let html=`<p style="margin-bottom:12px;color:#aaa;font-size:12px">
+    <strong style="color:#ddd">${title}</strong>${date?' — '+date:''}<br>
+    Posizioni rispetto all'impalcato — Nord=alto immagine, Sud=basso, Est=destra, Ovest=sinistra.
+  </p>
+  <table>
+    <tr><th>Foto n°</th><th>Tipo</th><th>Posizione sull'impalcato</th><th>Descrizione</th></tr>`;
+
+  for(const row of rows){
+    const{m,card,posOnBridge}=row;
+    const col=COLOR_HEX[m.color];
+    const badge=`<span style="display:inline-block;width:16px;height:16px;border-radius:50%;background:${col};vertical-align:middle;margin-right:6px"></span>`;
+    const desc=buildDesc(row);
+    html+=`<tr>
+      <td><strong>${badge}${m.n}</strong></td>
+      <td style="color:${col}">${COLOR_LABEL[m.color]||m.color}</td>
+      <td style="color:#bbb">${posOnBridge}, lato ${card}</td>
+      <td>${desc}</td>
+    </tr>`;
+  }
+  html+='</table>';
+  document.getElementById('report-content').innerHTML=html;
+  document.getElementById('report-modal').classList.add('open');
+}
+
+document.getElementById('btn-report').addEventListener('click', openReport);
+document.getElementById('btn-report-close').addEventListener('click',()=>{
+  document.getElementById('report-modal').classList.remove('open');
+});
+
+// Export report come JPG
+document.getElementById('btn-report-jpg').addEventListener('click',()=>{
+  const result=buildReport(); if(!result||!result.rows.length) return;
+  const{rows}=result;
+  const title=document.getElementById('leg-title').value||'Ispezione';
+  const date=document.getElementById('leg-date').value||'';
+
+  const c=document.createElement('canvas');
+  const ROW_H=60, HEAD_H=130, FOOTER_H=36, PAD=28;
+  c.width=1600; c.height=HEAD_H+rows.length*ROW_H+FOOTER_H+PAD*2;
+  const cx=c.getContext('2d');
+
+  cx.fillStyle='#ffffff'; cx.fillRect(0,0,c.width,c.height);
+
+  // Header
+  cx.fillStyle='#1e293b'; cx.fillRect(0,0,c.width,HEAD_H);
+  cx.fillStyle='#ffffff'; cx.font='bold 30px -apple-system,Arial,sans-serif';
+  cx.textAlign='left'; cx.textBaseline='top';
+  cx.fillText(title,PAD,18);
+  cx.font='15px -apple-system,Arial,sans-serif'; cx.fillStyle='#94a3b8';
+  cx.fillText((date?date+' — ':'')+`Report posizioni foto · ${rows.length} marker`,PAD,62);
+  cx.font='12px -apple-system,Arial,sans-serif'; cx.fillStyle='#64748b';
+  cx.fillText('Nord=alto · Sud=basso · Est=destra · Ovest=sinistra',PAD,90);
+
+  // Intestazioni
+  const COLS=[{w:90,l:'Foto n°'},{w:110,l:'Tipo'},{w:300,l:'Posizione'},{w:1100,l:'Descrizione'}];
+  cx.fillStyle='#f1f5f9'; cx.fillRect(0,HEAD_H,c.width,36);
+  cx.font='bold 13px -apple-system,Arial,sans-serif'; cx.fillStyle='#475569';
+  cx.textBaseline='middle';
+  let colX=PAD;
+  for(const col of COLS){ cx.fillText(col.l,colX,HEAD_H+18); colX+=col.w; }
+
+  // Righe
+  let ry=HEAD_H+36;
+  for(let i=0;i<rows.length;i++){
+    const row=rows[i];
+    const{m,card,posOnBridge}=row;
+    const col=COLOR_HEX[m.color];
+    if(i%2===0){cx.fillStyle='#f8fafc';cx.fillRect(0,ry,c.width,ROW_H);}
+    const desc=buildDesc(row);
+
+    colX=PAD;
+    // Badge
+    cx.beginPath();cx.arc(colX+16,ry+ROW_H/2,14,0,Math.PI*2);
+    cx.fillStyle=col;cx.fill();
+    cx.fillStyle='#fff';cx.font='bold 13px -apple-system,Arial,sans-serif';
+    cx.textAlign='center';cx.textBaseline='middle';
+    cx.fillText(String(m.n),colX+16,ry+ROW_H/2);
+    colX+=COLS[0].w;
+
+    cx.fillStyle=col;cx.font='bold 13px -apple-system,Arial,sans-serif';
+    cx.textAlign='left';
+    cx.fillText(COLOR_LABEL[m.color]||m.color,colX,ry+ROW_H/2);
+    colX+=COLS[1].w;
+
+    cx.fillStyle='#475569';cx.font='13px -apple-system,Arial,sans-serif';
+    cx.fillText(`${posOnBridge}, lato ${card}`,colX,ry+ROW_H/2);
+    colX+=COLS[2].w;
+
+    cx.fillStyle='#1e293b';cx.font='13px -apple-system,Arial,sans-serif';
+    const wds=wrapText(cx,desc,COLS[3].w-10);
+    const lineH=19;
+    const startY=ry+ROW_H/2-(wds.length-1)*lineH/2;
+    for(let wi=0;wi<wds.length;wi++) cx.fillText(wds[wi],colX,startY+wi*lineH);
+    ry+=ROW_H;
+  }
+
+  // Footer
+  cx.fillStyle='#94a3b8';cx.font='11px -apple-system,Arial,sans-serif';
+  cx.textAlign='left';cx.textBaseline='top';
+  cx.fillText('Annotatore Ispezioni Ponti — '+new Date().toLocaleDateString('it-IT'),PAD,ry+10);
+
+  c.toBlob(b=>dlBlob(b,'report_posizioni.jpg'),'image/jpeg',.93);
+});
+
+// ═══════════════════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════════════════
+updateList();
+</script>
+</body>
+</html>
